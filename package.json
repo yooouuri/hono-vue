@@ -1,0 +1,20 @@
+{
+  "private": "true",
+  "version": "1.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.2.1",
+  "scripts": {
+    "dev": "vite"
+  },
+  "dependencies": {
+    "hono": "^4.6.20",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@hono/vite-dev-server": "^0.18.1",
+    "@types/node": "^22.13.1",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
+  }
+}
