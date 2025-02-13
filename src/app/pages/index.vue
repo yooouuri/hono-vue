@@ -17,7 +17,7 @@ const { state } = useQuery({
 <template>
   <button @click="value++">Click</button>
 
-  {{ value }}a
+  {{ value }}
 
   <div v-if="state.status === 'pending'">
     Loading...

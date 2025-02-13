@@ -1,5 +1,0 @@
-<template>
-  Auth
-
-  <slot />
-</template>
