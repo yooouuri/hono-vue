@@ -1,23 +1,21 @@
-import { createSSRApp, defineComponent, h, ref } from 'vue'
-import index from './index.vue'
-
-// const index = defineComponent({
-//   setup() {
-//     const amount = ref(0)
-
-//     function increment() {
-//       amount.value++
-//     }
-
-//     return () => h('div', [
-//       h('p', `Amount: ${amount.value}`),
-//       h('button', { onClick: increment }, 'Increment')
-//     ])
-//   }
-// })
+import { createSSRApp } from 'vue'
+import { createPinia } from 'pinia'
+import { PiniaColada } from '@pinia/colada'
+import { routes } from 'vue-router/auto-routes' // handleHotUpdate
+import App from './App.vue'
+import { createMemoryHistory, createRouter, createWebHistory } from 'vue-router'
 
 export function createApp() {
-  const app = createSSRApp(index)
+  const app = createSSRApp(App)
+  const pinia = createPinia()
+  const router = createRouter({
+    history: import.meta.env.SSR ?
+      createMemoryHistory('/') : createWebHistory('/'),
+    routes: routes,
+  })
+  app.use(pinia)
+  app.use(PiniaColada)
+  app.use(router)
 
-  return { app }
+  return { app, pinia, router }
 }

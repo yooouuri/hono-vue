@@ -1,48 +1,111 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin, type ResolvedConfig, type ViteDevServer } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import devServer from '@hono/vite-dev-server'
+// import build from '@hono/vite-build/cloudflare-pages'
+import { parseModule } from 'magicast'
+import adapter from '@hono/vite-dev-server/cloudflare'
+import VueRouter from 'unplugin-vue-router/vite'
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-import { Hono } from 'hono'
-import { stream } from 'hono/streaming'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-export default defineConfig(({ mode }) => {
-  const plugins = [
-    vue(),
-    devServer({
-      async loadModule(vite) {
-        const app = new Hono()
+declare global {
+  var vite: ViteDevServer
+}
 
-        const server = (await vite.ssrLoadModule('/src/server/index.ts')).default as Hono
-
-        app.route('/api', server)
-        app.get('*', async (c) => {
-          const { render } = await vite.ssrLoadModule('/src/app/entry-server.ts') as { render: () => Promise<string> }
-
-          let template = readFileSync(resolve('.', 'index.html'),'utf-8',)
-          template = await vite.transformIndexHtml('/', template)
-          template = template.replace(`<!--app-html-->`, await render())
-
-          return stream(c, async (stream) => {
-            c.header('Transfer-Encoding', 'chunked')
-            c.header('Content-Type', 'text/html; charset=UTF-8')
-      
-            await stream.write(template)
-            await stream.close()
-          })
-        })
-
-        return {  
-          async fetch(request, env, ctx) {
-            return app.fetch(request, env, ctx)
-          },
-        }
-      }
-    }),
-  ]
+const plugin = (): Plugin => {
+  let config: ResolvedConfig
+  let server: ViteDevServer
 
   return {
-    plugins,
-    appType: 'custom',
+    name: 'vite-plugin-hono-vue',
+    configResolved(resolvedConfig) {
+      config = resolvedConfig
+    },
+    configureServer(_server) {
+      server = _server
+      globalThis.vite = server
+    },
+    async transform(code, id) {
+      if (id.endsWith('src/index.ts')) {
+        let template
+
+        if (config.command === 'serve') {
+          template = readFileSync(
+            resolve(dirname(fileURLToPath(import.meta.url)), 'index.html'),
+            'utf-8',
+          )
+        // } else {
+        //   template = htmlFromClientBuild
+        }
+
+        const mod = parseModule(`import { HTTPException } from 'hono/http-exception'
+import { render } from './app/entry-server'
+${code}
+app.get('*', async (c, next) => {
+  try {
+    let template = \`${template}\`
+
+    const url = new URL(c.req.url)
+
+    const { html, payload } = await render(url.pathname)
+
+    if (import.meta.env.SSR && import.meta.env.DEV) {
+      template = await globalThis.vite.transformIndexHtml(url.pathname, template)
+    }
+
+    template = template.replace('<!--app-html-->', html)
+    template = template.replace('<!--payload-->', '<script>window.__payload = ' + JSON.stringify(payload) + '</script>')
+
+    return c.html(template)
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      globalThis.vite.ssrFixStacktrace(e)
+
+      console.error(e) // TODO show error overlay
+
+      throw new HTTPException(500, { cause: e })
+    }
+
+    throw new HTTPException(500)
   }
 })
+
+export default app`)
+
+        return mod.generate()
+      }
+    },
+  }
+}
+
+export default defineConfig(({ mode }) => ({
+  ssr: {
+    noExternal: mode === 'development' ? ['vue-router'] : [],
+  },
+  plugins: [
+    VueRouter({
+      routesFolder: 'src/app/pages',
+    }),
+    vue(),
+    devServer({
+      entry: 'src/index.ts',
+      adapter,
+      exclude: [
+        /.*\.css$/,
+        /.*\.vue$/,
+        /.*\.ts$/,
+        /.*\.tsx$/,
+        /^\/@.+$/,
+        /\?t\=\d+$/,
+        /^\/favicon\.ico$/,
+        /^\/static\/.+/,
+        /^\/node_modules\/.*/,
+        /^\/__vue-router\/.+/
+      ],
+      injectClientScript: false,
+    }),
+    plugin(),
+  ],
+  appType: 'custom',
+}))
