@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "pnpm run build:client && pnpm run build:server",
     "build:server": "vite build",
-    "build:client": "vite build -c vite.client.config.ts"
+    "build:client": "vite build -c vite.client.config.ts",
+    "cf-typegen": "wrangler types"
   },
   "dependencies": {
     "@pinia/colada": "^0.13.5",
